@@ -40,6 +40,13 @@ MouseSnap is built for multi-monitor setups. With a single display, it has nothi
 
 ## Install
 
+### Homebrew (recommended)
+
+```bash
+brew install --cask raoulius/tap/mousesnap
+open /Applications/MouseSnap.app
+```
+
 ### Download
 
 1. Download `MouseSnap.zip` from the [latest release](https://github.com/raoulius/mousesnap/releases/latest).
@@ -65,9 +72,20 @@ Then turn on **Start at Login** from the menu bar icon.
 
 ## Updating
 
-MouseSnap checks GitHub for a new release when it launches and once a day after that. When one is available, the menu shows **Update to vX.Y.Z…**, which opens the release page. Download the new zip and replace the app in `/Applications`. You can also check at any time with **Check for Updates…**. The menu shows your installed version at the bottom.
+MouseSnap checks GitHub for a new release when it launches and once a day after that. When one is available, the menu shows **Update to vX.Y.Z…**. You can also check at any time with **Check for Updates…**. The menu shows your installed version at the bottom.
 
-After replacing the app, macOS may stop honoring the Accessibility permission. If the click on arrival stops working, remove MouseSnap under System Settings → Privacy & Security → Accessibility and add it again.
+**Installed with Homebrew:**
+
+```bash
+brew upgrade --cask mousesnap
+open /Applications/MouseSnap.app
+```
+
+Homebrew quits MouseSnap during the upgrade, so reopen it afterwards. If you choose **Update to vX.Y.Z…**, MouseSnap detects the Homebrew install and offers to copy this command.
+
+**Downloaded:** **Update to vX.Y.Z…** opens the release page. Download the new zip and replace the app in `/Applications`.
+
+After an update, macOS may stop honoring the Accessibility permission. If the click on arrival stops working, remove MouseSnap under System Settings → Privacy & Security → Accessibility and add it again.
 
 ## Usage
 
@@ -98,6 +116,12 @@ git tag v1.1.0 && git push origin v1.1.0
 ```
 
 The [Release workflow](.github/workflows/release.yml) builds a universal app with that version number, zips it and publishes a GitHub release with `MouseSnap.zip` attached. Installed copies see the new release within a day.
+
+Within 6 hours, the [tap's Bump workflow](https://github.com/raoulius/homebrew-tap/blob/main/.github/workflows/bump.yml) points the Homebrew cask at the new release. To make `brew upgrade` see it right away, run:
+
+```bash
+gh workflow run bump.yml -R raoulius/homebrew-tap
+```
 
 ## Building the icon
 
