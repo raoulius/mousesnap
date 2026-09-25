@@ -85,7 +85,7 @@ Homebrew quits MouseSnap during the upgrade, so reopen it afterwards. If you cho
 
 **Downloaded:** **Update to vX.Y.Z…** opens the release page. Download the new zip and replace the app in `/Applications`.
 
-After an update, macOS may stop honoring the Accessibility permission. If the click on arrival stops working, remove MouseSnap under System Settings → Privacy & Security → Accessibility and add it again.
+After an update, macOS stops honoring the Accessibility permission, even though MouseSnap still looks switched on in the list. The first time a new version launches without the permission, MouseSnap opens a short guide. It links to the right Settings page and shows which buttons to click: remove MouseSnap with **–**, add it back, and switch it on. You can reopen the guide at any time from **⚠︎ Allow Accessibility…** in the menu, which only appears while the permission isn't working.
 
 ## Usage
 
