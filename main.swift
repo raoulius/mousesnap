@@ -19,7 +19,19 @@ func snap(_ i: Int) {
     CGAssociateMouseAndMouseCursorPosition(1) // no input freeze after the warp
     // Click so the app under the cursor takes focus, as if you'd clicked it yourself.
     // Needs Accessibility permission; without it macOS drops the events and only the cursor moves.
-    if changingMonitor { click(at: p) }
+    if changingMonitor && hasAppWindow(at: p) { click(at: p) }
+}
+
+// Clicking bare wallpaper triggers macOS's "Click wallpaper to reveal desktop",
+// which slides every window away on all monitors. Only click onto a normal app window.
+func hasAppWindow(at p: CGPoint) -> Bool {
+    let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+    return windows.contains { window in
+        guard window[kCGWindowLayer as String] as? Int == 0, // normal app windows, not menu bar/Dock/overlays
+              let bounds = window[kCGWindowBounds as String] as? NSDictionary,
+              let rect = CGRect(dictionaryRepresentation: bounds) else { return false }
+        return rect.contains(p) // CG window bounds use the same top-left coordinates as p
+    }
 }
 
 func click(at p: CGPoint) {
