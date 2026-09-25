@@ -1,4 +1,5 @@
-# Push a tag like v1.2.0 → builds MouseSnap and publishes a GitHub release with MouseSnap.zip.
+# Push a tag like v1.2.0 → builds MouseSnap and publishes a GitHub release with MouseSnap.zip
+# (or attaches the zip to a release you already created for that tag).
 name: Release
 on:
   push:
@@ -12,6 +13,9 @@ jobs:
       - uses: actions/checkout@v4
       - run: VERSION="${GITHUB_REF_NAME#v}" ./build.sh
       - run: ditto -c -k --keepParent MouseSnap.app MouseSnap.zip
-      - run: gh release create "$GITHUB_REF_NAME" MouseSnap.zip --generate-notes
+      # If a release for this tag was already created by hand, attach the zip to it.
+      - run: |
+          gh release upload "$GITHUB_REF_NAME" MouseSnap.zip --clobber ||
+            gh release create "$GITHUB_REF_NAME" MouseSnap.zip --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}
