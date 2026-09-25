@@ -43,13 +43,13 @@ MouseSnap is built for multi-monitor setups. With a single display, it has nothi
 
 ### Homebrew (recommended)
 
-Don't have Homebrew? Check with `brew --version`. If the command isn't found, install it from [brew.sh](https://brew.sh):
+Don't have Homebrew? To check, open the Terminal app (Applications → Utilities → Terminal) and run `brew --version`. If you get "command not found", run this command in your terminal to install it (from [brew.sh](https://brew.sh)):
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
-When the installer finishes, run the "Next steps" commands it prints so `brew` is on your PATH. Then install MouseSnap:
+When the installer finishes, run the "Next steps" commands it prints so `brew` is on your PATH. Then run these commands in your terminal to install and open MouseSnap:
 
 ```bash
 brew install --cask raoulius/tap/mousesnap
