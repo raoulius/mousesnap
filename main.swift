@@ -162,7 +162,30 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc func checkNow() { checkForUpdates(manual: true) }
-    @objc func openUpdate() { if let update { NSWorkspace.shared.open(update.page) } }
+    @objc func openUpdate() {
+        guard let update else { return }
+        // Homebrew installs keep a Caskroom entry; those users should upgrade through brew.
+        let brewInstalled = ["/opt/homebrew", "/usr/local"].contains {
+            FileManager.default.fileExists(atPath: "\($0)/Caskroom/mousesnap")
+        }
+        guard brewInstalled else { NSWorkspace.shared.open(update.page); return }
+        let command = "brew upgrade --cask mousesnap"
+        let alert = NSAlert()
+        alert.messageText = "MouseSnap \(update.version) is available"
+        alert.informativeText = "You installed MouseSnap with Homebrew. To update, run this in Terminal:\n\n\(command)"
+        alert.addButton(withTitle: "Copy Command")
+        alert.addButton(withTitle: "Release Notes")
+        alert.addButton(withTitle: "Cancel")
+        NSApp.activate(ignoringOtherApps: true)
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(command, forType: .string)
+        case .alertSecondButtonReturn:
+            NSWorkspace.shared.open(update.page)
+        default: break
+        }
+    }
     @objc func toggleEnabled() { enabled.toggle() }
     @objc func snapItem(_ sender: NSMenuItem) { snap(sender.tag) }
     @objc func pickModifier(_ sender: NSMenuItem) { modifierIndex = sender.tag }
