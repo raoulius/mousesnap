@@ -36,10 +36,19 @@ let modifierOptions: [(label: String, carbon: Int, cocoa: NSEvent.ModifierFlags)
 ]
 let digitKeys = [kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5, kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8, kVK_ANSI_9]
 
+let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+let latestReleaseAPI = URL(string: "https://api.github.com/repos/raoulius/mousesnap/releases/latest")!
+
+// "1.10.0" > "1.9.2"; a leading "v" on tags is ignored.
+func isNewer(_ tag: String, than version: String) -> Bool {
+    tag.trimmingCharacters(in: ["v"]).compare(version, options: .numeric) == .orderedDescending
+}
+
 final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     let defaults = UserDefaults.standard
     var hotKeys: [EventHotKeyRef] = []
+    var update: (version: String, page: URL)?
 
     var enabled: Bool {
         get { defaults.object(forKey: "enabled") as? Bool ?? true }
@@ -67,6 +76,33 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return noErr
         }, 1, &spec, nil, nil)
         registerHotKeys()
+
+        checkForUpdates(manual: false)
+        Timer.scheduledTimer(withTimeInterval: 24 * 60 * 60, repeats: true) { [weak self] _ in
+            self?.checkForUpdates(manual: false)
+        }
+    }
+
+    // Quiet checks only light up the menu item; a manual check always reports back.
+    func checkForUpdates(manual: Bool) {
+        URLSession.shared.dataTask(with: latestReleaseAPI) { data, _, error in
+            struct Release: Decodable { let tag_name: String; let html_url: URL }
+            let release = data.flatMap { try? JSONDecoder().decode(Release.self, from: $0) }
+            DispatchQueue.main.async {
+                if let release, isNewer(release.tag_name, than: currentVersion) {
+                    self.update = (release.tag_name.trimmingCharacters(in: ["v"]), release.html_url)
+                    if manual { self.openUpdate() }
+                } else if manual {
+                    let alert = NSAlert()
+                    alert.messageText = release == nil ? "Couldn't check for updates" : "You're up to date"
+                    alert.informativeText = release == nil
+                        ? (error?.localizedDescription ?? "GitHub didn't return a release.")
+                        : "MouseSnap \(currentVersion) is the latest version."
+                    NSApp.activate(ignoringOtherApps: true)
+                    alert.runModal()
+                }
+            }
+        }.resume()
     }
 
     func registerHotKeys() {
@@ -88,7 +124,11 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         add(to: menu, "Enable MouseSnap", #selector(toggleEnabled), on: enabled)
         menu.addItem(.separator())
 
-        menu.addItem(NSMenuItem.sectionHeader(title: "Monitors"))
+        if #available(macOS 14, *) {
+            menu.addItem(.sectionHeader(title: "Monitors"))
+        } else {
+            menu.addItem(withTitle: "Monitors", action: nil, keyEquivalent: "").isEnabled = false
+        }
         for (i, screen) in sortedScreens().prefix(9).enumerated() {
             let item = add(to: menu, screen.localizedName, #selector(snapItem(_:)), key: "\(i + 1)")
             item.keyEquivalentModifierMask = modifierOptions[modifierIndex].cocoa
@@ -103,6 +143,13 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(withTitle: "Shortcut", action: nil, keyEquivalent: "").submenu = shortcut
         add(to: menu, "Start at Login", #selector(toggleLogin), on: SMAppService.mainApp.status == .enabled)
         menu.addItem(.separator())
+        if let update {
+            add(to: menu, "Update to v\(update.version)…", #selector(openUpdate))
+        } else {
+            add(to: menu, "Check for Updates…", #selector(checkNow))
+        }
+        let version = menu.addItem(withTitle: "Version \(currentVersion)", action: nil, keyEquivalent: "")
+        version.isEnabled = false
         add(to: menu, "Quit MouseSnap", #selector(NSApplication.terminate(_:)), key: "q").target = NSApp
     }
 
@@ -114,6 +161,8 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return item
     }
 
+    @objc func checkNow() { checkForUpdates(manual: true) }
+    @objc func openUpdate() { if let update { NSWorkspace.shared.open(update.page) } }
     @objc func toggleEnabled() { enabled.toggle() }
     @objc func snapItem(_ sender: NSMenuItem) { snap(sender.tag) }
     @objc func pickModifier(_ sender: NSMenuItem) { modifierIndex = sender.tag }
