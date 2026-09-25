@@ -9,6 +9,8 @@ permissions:
 jobs:
   release:
     runs-on: macos-latest
+    env:
+      TAP_TOKEN: ${{ secrets.TAP_TOKEN }} # fine-grained token: raoulius/homebrew-tap, Actions read/write
     steps:
       - uses: actions/checkout@v4
       - run: VERSION="${GITHUB_REF_NAME#v}" ./build.sh
@@ -19,3 +21,8 @@ jobs:
             gh release create "$GITHUB_REF_NAME" MouseSnap.zip --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}
+      # Tell the Homebrew tap to pick up this release now instead of on its 6-hour schedule.
+      - if: env.TAP_TOKEN != ''
+        run: gh workflow run bump.yml -R raoulius/homebrew-tap
+        env:
+          GH_TOKEN: ${{ env.TAP_TOKEN }}
