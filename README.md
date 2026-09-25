@@ -5,17 +5,28 @@
 <h1 align="center">MouseSnap</h1>
 
 <p align="center">
-  Snap your cursor to the center of any monitor with a keyboard shortcut.<br>
+  Jump your cursor between monitors with a keyboard shortcut.<br>
   A tiny menu bar app for multi-monitor Macs.
 </p>
 
 ---
 
-On a big multi-monitor setup, dragging the mouse across screens gets old fast. MouseSnap puts it where you want it with one keystroke: press **⌃⌥1** and the cursor jumps to the center of your first monitor, **⌃⌥2** to the second, and so on.
+## Why
+
+With two, three or more displays, getting the cursor to another screen means a long drag across your desk. Worse, you lose track of which screen it's on. MouseSnap gives each monitor its own hotkey:
+
+- **⌃⌥1** moves the cursor to the center of your leftmost monitor.
+- **⌃⌥2** moves it to the center of the next one.
+- And so on, up to 9 monitors.
+
+The cursor always lands in the middle of the screen, so you know exactly where it is.
+
+MouseSnap is built for multi-monitor setups. With a single display, it has nothing to jump between.
 
 ## Features
 
-- **Global shortcuts:** `modifier + 1…9` jumps to monitor 1–9, numbered left to right.
+- **One hotkey per monitor:** `modifier + 1…9` jumps to monitor 1–9, numbered left to right like your physical layout.
+- **Works across mixed setups:** different resolutions, scaling and arrangements, including monitors above or below each other.
 - **Choose the modifier:** ⌃⌥, ⌃⌘, ⌥⌘ or ⌃⇧.
 - **Menu bar only:** no Dock icon and no windows.
 - **Monitor list:** the menu shows your connected displays; click one to snap there.
