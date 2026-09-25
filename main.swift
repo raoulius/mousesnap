@@ -3,9 +3,24 @@ import Carbon
 import ServiceManagement
 import SwiftUI
 
-// Monitors numbered left to right.
+// Monitors in the order picked in Arrange Monitors; any not in that order follow, left to right.
 func sortedScreens() -> [NSScreen] {
+    let byPosition = screensByPosition()
+    let saved = UserDefaults.standard.stringArray(forKey: "monitorOrder") ?? []
+    let rank = { (i: Int) in saved.firstIndex(of: displayID(byPosition[i]) ?? "") ?? saved.count + i }
+    return byPosition.indices.sorted { rank($0) < rank($1) }.map { byPosition[$0] }
+}
+
+func screensByPosition() -> [NSScreen] {
     NSScreen.screens.sorted { ($0.frame.minX, $0.frame.minY) < ($1.frame.minX, $1.frame.minY) }
+}
+
+// Stable across reboots and reconnects (built from vendor, model and serial).
+// ponytail: two identical monitors without serial numbers can share an ID; they'd fall back to position order.
+func displayID(_ screen: NSScreen) -> String? {
+    guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID,
+          let uuid = CGDisplayCreateUUIDFromDisplayID(number)?.takeRetainedValue() else { return nil }
+    return CFUUIDCreateString(nil, uuid) as String
 }
 
 func snap(_ i: Int) {
@@ -177,6 +192,7 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
             item.keyEquivalentModifierMask = modifierOptions[modifierIndex].cocoa
             item.tag = i
         }
+        add(to: menu, "Arrange Monitors…", #selector(showArrange))
         menu.addItem(.separator())
 
         let shortcut = NSMenu()
@@ -202,6 +218,28 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         item.target = self
         item.state = on ? .on : .off
         return item
+    }
+
+    var arrangeWindow: NSWindow?
+    let labels = MonitorLabels()
+    @objc func showArrange() {
+        arrangeWindow?.close()
+        let prefix = String(modifierOptions[modifierIndex].label.prefix(2))
+        let view = ArrangeMonitors(shortcut: prefix, labels: labels) { [weak self] order in
+            if let order { UserDefaults.standard.set(order, forKey: "monitorOrder") }
+            self?.arrangeWindow?.close()
+        }
+        let window = NSWindow(contentViewController: NSHostingController(rootView: view))
+        window.title = "Arrange Monitors"
+        window.styleMask = [.titled, .closable]
+        window.isReleasedWhenClosed = false
+        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { [weak self] _ in
+            self?.labels.hide()
+        }
+        arrangeWindow = window
+        window.center()
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
     }
 
     var helpWindow: NSWindow?
@@ -255,6 +293,145 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } catch {
             NSAlert(error: error).runModal()
         }
+    }
+}
+
+// Mirrors System Settings → Displays: monitors drawn where they sit, each with its wallpaper.
+// Click them in the order you want; the first click becomes shortcut 1.
+struct ArrangeMonitors: View {
+    let shortcut: String
+    let labels: MonitorLabels
+    let finish: ([String]?) -> Void // nil = cancel
+
+    struct Monitor: Identifiable {
+        let id: String
+        let name: String
+        let frame: CGRect
+        let wallpaper: NSImage?
+    }
+    let monitors: [Monitor]
+    @State private var order: [String]
+
+    init(shortcut: String, labels: MonitorLabels, finish: @escaping ([String]?) -> Void) {
+        self.shortcut = shortcut
+        self.labels = labels
+        self.finish = finish
+        monitors = screensByPosition().compactMap { screen in
+            guard let id = displayID(screen) else { return nil }
+            let wallpaper = NSWorkspace.shared.desktopImageURL(for: screen).flatMap { NSImage(contentsOf: $0) }
+            return Monitor(id: id, name: screen.localizedName, frame: screen.frame, wallpaper: wallpaper)
+        }
+        _order = State(initialValue: sortedScreens().compactMap(displayID))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Click your monitors in the order you want them numbered.").font(.headline)
+            Text("The first one you click becomes \(shortcut)1, the next \(shortcut)2, and so on. Each monitor shows its number while this window is open.")
+                .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+
+            layout.frame(width: 520, height: 260)
+                .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.06)))
+
+            HStack {
+                Button("Clear") { order = [] }
+                Button("Left to Right") { order = monitors.map(\.id) }
+                Spacer()
+                Button("Cancel") { finish(nil) }.keyboardShortcut(.cancelAction)
+                Button("Save") { finish(order) }.keyboardShortcut(.defaultAction)
+                    .disabled(order.count != monitors.count)
+            }
+        }
+        .frame(width: 520, alignment: .leading)
+        .padding(20)
+        .onAppear { labels.show(order: order) }
+        .onChange(of: order) { labels.show(order: $0) }
+    }
+
+    // Scale the real arrangement to fit the canvas. Cocoa's y points up, SwiftUI's down.
+    var layout: some View {
+        GeometryReader { geo in
+            let bounds = monitors.map(\.frame).reduce(CGRect.null) { $0.union($1) }
+            let scale = min((geo.size.width - 40) / bounds.width, (geo.size.height - 40) / bounds.height)
+            let offset = CGPoint(x: (geo.size.width - bounds.width * scale) / 2,
+                                 y: (geo.size.height - bounds.height * scale) / 2)
+            ForEach(monitors) { monitor in
+                let rect = CGRect(x: offset.x + (monitor.frame.minX - bounds.minX) * scale,
+                                  y: offset.y + (bounds.maxY - monitor.frame.maxY) * scale,
+                                  width: monitor.frame.width * scale, height: monitor.frame.height * scale)
+                tile(monitor)
+                    .frame(width: rect.width - 4, height: rect.height - 4)
+                    .position(x: rect.midX, y: rect.midY)
+            }
+        }
+    }
+
+    func tile(_ monitor: Monitor) -> some View {
+        let number = order.firstIndex(of: monitor.id).map { $0 + 1 }
+        return ZStack {
+            if let wallpaper = monitor.wallpaper {
+                Image(nsImage: wallpaper).resizable().scaledToFill()
+            } else {
+                Color.gray.opacity(0.4)
+            }
+            Color.black.opacity(number == nil ? 0.45 : 0.15)
+            if let number {
+                Text("\(number)").font(.system(size: 40, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white).shadow(radius: 4)
+            }
+            VStack {
+                Spacer()
+                Text(monitor.name).font(.caption.bold()).foregroundStyle(.white).lineLimit(1)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Capsule().fill(.black.opacity(0.5))).padding(6)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6)
+            .stroke(number == nil ? Color.white.opacity(0.4) : Color.accentColor, lineWidth: number == nil ? 1 : 3))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            // Clicking a numbered monitor takes it out; the ones after it move up.
+            if let i = order.firstIndex(of: monitor.id) { order.remove(at: i) } else { order.append(monitor.id) }
+        }
+    }
+}
+
+// A big number in the middle of each physical monitor, so you can match the tiles to your desk.
+final class MonitorLabels {
+    private var panels: [NSPanel] = []
+
+    func show(order: [String]) {
+        hide()
+        for screen in NSScreen.screens {
+            let number = displayID(screen).flatMap { order.firstIndex(of: $0) }.map { "\($0 + 1)" } ?? "?"
+            let label = NSHostingView(rootView:
+                VStack(spacing: 4) {
+                    Text(number).font(.system(size: 96, weight: .bold, design: .rounded))
+                    Text(screen.localizedName).font(.title3.bold())
+                }
+                .foregroundStyle(.white)
+                .frame(width: 260, height: 180)
+                .background(RoundedRectangle(cornerRadius: 24).fill(.black.opacity(0.6))))
+            let size = CGSize(width: 260, height: 180)
+            let panel = NSPanel(contentRect: CGRect(x: screen.frame.midX - size.width / 2, y: screen.frame.midY - size.height / 2,
+                                                    width: size.width, height: size.height),
+                                styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+            panel.contentView = label
+            panel.isReleasedWhenClosed = false
+            panel.backgroundColor = .clear
+            panel.isOpaque = false
+            panel.level = .statusBar
+            panel.ignoresMouseEvents = true
+            panel.collectionBehavior = [.canJoinAllSpaces, .transient]
+            panel.orderFrontRegardless()
+            panels.append(panel)
+        }
+    }
+
+    func hide() {
+        panels.forEach { $0.close() }
+        panels = []
     }
 }
 

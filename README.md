@@ -29,6 +29,7 @@ MouseSnap is built for multi-monitor setups. With a single display, it has nothi
 - **Works across mixed setups:** different resolutions, scaling and arrangements, including monitors above or below each other.
 - **Choose the modifier:** ⌃⌥, ⌃⌘, ⌥⌘ or ⌃⇧.
 - **Menu bar only:** no Dock icon and no windows.
+- **Pick the numbering:** in **Arrange Monitors**, click your monitors in the order you want them numbered, on a layout that matches System Settings → Displays.
 - **Monitor list:** the menu shows your connected displays; click one to snap there.
 - **Start at Login:** one click in the menu.
 - **Focus follows the jump:** a single click on arrival focuses the app on the new monitor. This needs Accessibility permission, which macOS asks for on first launch. Without it, the cursor still moves but nothing is clicked.
@@ -98,7 +99,11 @@ After an update, macOS stops honoring the Accessibility permission, even though 
 
 To use a different modifier, open **Shortcut** in the menu bar icon's menu.
 
-Monitors are ordered by position, left to right (ties are broken top to bottom). Rearranging displays in System Settings → Displays changes the numbering.
+### Choosing which monitor is which number
+
+Open **Arrange Monitors…** from the menu bar icon. It shows your monitors where they sit, like System Settings → Displays, each with its wallpaper. Click them in the order you want: the first click becomes shortcut 1, the next becomes 2, and so on. Clicking a numbered monitor again removes it from the order. While the window is open, each physical monitor shows its number and name, so you can match the tiles to your desk.
+
+The order is saved per monitor, so it survives restarts and unplugging. By default, before you set an order, monitors are numbered left to right. A monitor you connect later that isn't in your order comes after the others.
 
 ## How it works
 
