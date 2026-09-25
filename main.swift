@@ -11,10 +11,21 @@ func snap(_ i: Int) {
     let screens = sortedScreens()
     guard i < screens.count else { return }
     let f = screens[i].frame
+    let changingMonitor = !f.contains(NSEvent.mouseLocation)
     // Cocoa origin is bottom-left of the menu-bar screen; CG is top-left.
     let flipH = NSScreen.screens[0].frame.height
-    CGWarpMouseCursorPosition(CGPoint(x: f.midX, y: flipH - f.midY))
+    let p = CGPoint(x: f.midX, y: flipH - f.midY)
+    CGWarpMouseCursorPosition(p)
     CGAssociateMouseAndMouseCursorPosition(1) // no input freeze after the warp
+    // Click so the app under the cursor takes focus, as if you'd clicked it yourself.
+    // Needs Accessibility permission; without it macOS drops the events and only the cursor moves.
+    if changingMonitor { click(at: p) }
+}
+
+func click(at p: CGPoint) {
+    for type in [CGEventType.leftMouseDown, .leftMouseUp] {
+        CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: p, mouseButton: .left)?.post(tap: .cghidEventTap)
+    }
 }
 
 let modifierOptions: [(label: String, carbon: Int, cocoa: NSEvent.ModifierFlags)] = [
@@ -44,6 +55,8 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let menu = NSMenu()
         menu.delegate = self
         statusItem.menu = menu
+        // Asks for Accessibility (needed for the click after a snap); macOS shows nothing once granted.
+        AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary)
 
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
         InstallEventHandler(GetApplicationEventTarget(), { _, event, _ in

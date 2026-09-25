@@ -19,7 +19,7 @@ With two, three or more displays, getting the cursor to another screen means a l
 - **⌃⌥2** moves it to the center of the next one.
 - And so on, up to 9 monitors.
 
-The cursor always lands in the middle of the screen, so you know exactly where it is.
+The cursor always lands in the middle of the screen, so you know exactly where it is. When you jump to a different monitor, MouseSnap also clicks once where the cursor lands, so the app there is focused and ready to type into.
 
 MouseSnap is built for multi-monitor setups. With a single display, it has nothing to jump between.
 
@@ -31,7 +31,7 @@ MouseSnap is built for multi-monitor setups. With a single display, it has nothi
 - **Menu bar only:** no Dock icon and no windows.
 - **Monitor list:** the menu shows your connected displays; click one to snap there.
 - **Start at Login:** one click in the menu.
-- **No permissions needed:** no Accessibility or Input Monitoring prompts.
+- **Focus follows the jump:** a single click on arrival focuses the app on the new monitor. This needs Accessibility permission, which macOS asks for on first launch. Without it, the cursor still moves but nothing is clicked.
 - **Small:** a single Swift file, no dependencies, about 80 KB.
 
 ## Requirements
@@ -68,6 +68,7 @@ Monitors are ordered by position, left to right (ties are broken top to bottom).
 
 - Hotkeys use Carbon's `RegisterEventHotKey`, which works system-wide without Accessibility permission.
 - The cursor moves with `CGWarpMouseCursorPosition`.
+- The click on arrival is a posted `CGEvent` mouse down/up, which needs Accessibility permission. `build.sh` signs ad hoc, so after a rebuild macOS may stop honoring the old grant: remove MouseSnap under System Settings → Privacy & Security → Accessibility and add it again.
 - Start at Login uses `SMAppService`.
 
 ## Building the icon
