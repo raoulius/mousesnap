@@ -1,6 +1,7 @@
 import Cocoa
 import Carbon
 import ServiceManagement
+import SwiftUI
 
 // Monitors numbered left to right.
 func sortedScreens() -> [NSScreen] {
@@ -98,8 +99,12 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let menu = NSMenu()
         menu.delegate = self
         statusItem.menu = menu
-        // Asks for Accessibility (needed for the click after a snap); macOS shows nothing once granted.
-        AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary)
+        // The click after a jump needs Accessibility. Ad-hoc builds lose the grant on every update,
+        // so explain how to redo it: once per version, only when it isn't working.
+        if !AXIsProcessTrusted() && defaults.string(forKey: "permissionHelpShown") != currentVersion {
+            defaults.set(currentVersion, forKey: "permissionHelpShown")
+            showPermissionHelp()
+        }
 
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
         InstallEventHandler(GetApplicationEventTarget(), { _, event, _ in
@@ -155,6 +160,10 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // Rebuilt on every open so the monitor list and checkmarks are always current.
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
+        if !AXIsProcessTrusted() {
+            add(to: menu, "⚠︎ Allow Accessibility…", #selector(showPermissionHelp))
+            menu.addItem(.separator())
+        }
         add(to: menu, "Enable MouseSnap", #selector(toggleEnabled), on: enabled)
         menu.addItem(.separator())
 
@@ -195,6 +204,22 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return item
     }
 
+    var helpWindow: NSWindow?
+    @objc func showPermissionHelp() {
+        if helpWindow == nil {
+            let window = NSWindow(contentViewController: NSHostingController(rootView: PermissionHelp { [weak self] in
+                self?.helpWindow?.close()
+            }))
+            window.title = "MouseSnap"
+            window.styleMask = [.titled, .closable]
+            window.isReleasedWhenClosed = false
+            helpWindow = window
+        }
+        helpWindow?.center()
+        NSApp.activate(ignoringOtherApps: true)
+        helpWindow?.makeKeyAndOrderFront(nil)
+    }
+
     @objc func checkNow() { checkForUpdates(manual: true) }
     @objc func openUpdate() {
         guard let update else { return }
@@ -229,6 +254,74 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if service.status == .enabled { try service.unregister() } else { try service.register() }
         } catch {
             NSAlert(error: error).runModal()
+        }
+    }
+}
+
+struct PermissionHelp: View {
+    let done: () -> Void
+    @State private var trusted = AXIsProcessTrusted()
+    private let poll = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 14) {
+                Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 56, height: 56)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Turn clicking back on").font(.title2.bold())
+                    Text("MouseSnap \(currentVersion)").foregroundStyle(.secondary)
+                }
+            }
+            Text("After a jump, MouseSnap clicks the window it lands on so that app is ready to use. That needs Accessibility permission, and macOS doesn't carry it over to a new version of MouseSnap, even if MouseSnap still looks switched on. The cursor still jumps without it.")
+                .fixedSize(horizontal: false, vertical: true)
+
+            step(1, "Open Accessibility settings.") {
+                Button("Open Accessibility Settings") {
+                    NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+                }
+            }
+            step(2, "Select MouseSnap in the list and click the – button to remove it.") { screenshot("RemoveStep") }
+            step(3, "Add MouseSnap back, then switch it on.") {
+                VStack(alignment: .leading, spacing: 8) {
+                    Button("Add MouseSnap Again") {
+                        AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary)
+                    }
+                    screenshot("ToggleStep")
+                }
+            }
+
+            Divider()
+            HStack {
+                Label(trusted ? "All set. Clicking works again." : "Waiting for permission…",
+                      systemImage: trusted ? "checkmark.circle.fill" : "hourglass")
+                    .foregroundStyle(trusted ? .green : .secondary)
+                Spacer()
+                Button(trusted ? "Done" : "Later", action: done).keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(24)
+        .frame(width: 480)
+        .onReceive(poll) { _ in trusted = AXIsProcessTrusted() }
+    }
+
+    func step(_ n: Int, _ text: String, @ViewBuilder content: () -> some View) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text("\(n)").font(.headline).frame(width: 24, height: 24)
+                .background(Circle().fill(Color.accentColor.opacity(0.2)))
+            VStack(alignment: .leading, spacing: 8) {
+                Text(text).fixedSize(horizontal: false, vertical: true)
+                content()
+            }
+        }
+    }
+
+    // Cropped from System Settings, so only MouseSnap's row shows.
+    func screenshot(_ name: String) -> some View {
+        Group {
+            if let image = Bundle.main.image(forResource: name) {
+                Image(nsImage: image).resizable().scaledToFit().frame(maxWidth: 400)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
         }
     }
 }
