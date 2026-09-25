@@ -36,10 +36,22 @@ MouseSnap is built for multi-monitor setups. With a single display, it has nothi
 
 ## Requirements
 
-- macOS 13 Ventura or later
-- Xcode Command Line Tools (`xcode-select --install`) to build
+- macOS 13 Ventura or later, Apple silicon or Intel
 
 ## Install
+
+### Download
+
+1. Download `MouseSnap.zip` from the [latest release](https://github.com/raoulius/mousesnap/releases/latest).
+2. Unzip it and move `MouseSnap.app` to `/Applications`.
+3. MouseSnap isn't notarized by Apple, so macOS blocks the first launch. Right-click the app, choose **Open**, then confirm. Alternatively, run:
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/MouseSnap.app
+   ```
+
+### Build from source
+
+Requires Xcode Command Line Tools (`xcode-select --install`).
 
 ```bash
 git clone https://github.com/raoulius/mousesnap.git
@@ -50,6 +62,12 @@ open /Applications/MouseSnap.app
 ```
 
 Then turn on **Start at Login** from the menu bar icon.
+
+## Updating
+
+MouseSnap checks GitHub for a new release when it launches and once a day after that. When one is available, the menu shows **Update to vX.Y.Z…**, which opens the release page. Download the new zip and replace the app in `/Applications`. You can also check at any time with **Check for Updates…**. The menu shows your installed version at the bottom.
+
+After replacing the app, macOS may stop honoring the Accessibility permission. If the click on arrival stops working, remove MouseSnap under System Settings → Privacy & Security → Accessibility and add it again.
 
 ## Usage
 
@@ -71,6 +89,16 @@ Monitors are ordered by position, left to right (ties are broken top to bottom).
 - The click on arrival is a posted `CGEvent` mouse down/up, which needs Accessibility permission. `build.sh` signs ad hoc, so after a rebuild macOS may stop honoring the old grant: remove MouseSnap under System Settings → Privacy & Security → Accessibility and add it again.
 - Start at Login uses `SMAppService`.
 
+## Releasing
+
+Push a version tag:
+
+```bash
+git tag v1.1.0 && git push origin v1.1.0
+```
+
+The [Release workflow](.github/workflows/release.yml) builds a universal app with that version number, zips it and publishes a GitHub release with `MouseSnap.zip` attached. Installed copies see the new release within a day.
+
 ## Building the icon
 
 The icon is drawn in code. To regenerate `AppIcon.icns` and `AppIcon.png`:
@@ -84,5 +112,6 @@ swift icon.swift
 ```
 main.swift    the app
 icon.swift    generates the app icon
-build.sh      compiles and bundles MouseSnap.app (ad-hoc signed)
+build.sh      compiles and bundles MouseSnap.app (universal, ad-hoc signed)
+.github/      release workflow
 ```
